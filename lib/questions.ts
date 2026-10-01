@@ -14,15 +14,31 @@ export interface Card {
   content: Content;
 }
 
-const CIRCLED = /^[①-⑳【A-C】\s]+/;
+/**
+ * The dictionary lists senses in classical order, so the first one is sometimes obscure
+ * (町 = "field ridge", 本 = "tree root"). These overrides point at the everyday sense;
+ * each must be a verbatim line of that kanji's own definition (checked in the tests).
+ */
+export const SENSE_OVERRIDES: Record<string, string> = {
+  町: "まち。ちょう。地方自治体の一つ。",
+  本: "書物。また、書物を数えることば。",
+  文: "字。文字。",
+};
 
-/** First usable sense of the Japanese definition, e.g. "みず。透明な液体。一般に、液体。" */
-export function firstSense(meaning: string): string {
-  const lines = meaning
+const senseLines = (meaning: string) =>
+  meaning
     .split("\n")
     .map((l) => l.trim())
-    .filter((l) => l && !/^【[^】]*】[^。]*$/.test(l));
-  const line = (lines[0] ?? meaning).replace(/^[①-⑳]\s*/, "").replace(/^【[^】]*】/, "");
+    .filter((l) => l && !/^【[^】]*】[^。]*$/.test(l))
+    .map((l) => l.replace(/^[①-⑳]\s*/, "").replace(/^【[^】]*】/, "").trim())
+    .filter(Boolean);
+
+/** One-line Japanese definition for a kanji, e.g. "みず。透明な液体。一般に、液体。" */
+export function firstSense(c: Pick<Content, "kanji" | "meaning_ja">): string {
+  const lines = senseLines(c.meaning_ja);
+  let line = SENSE_OVERRIDES[c.kanji] ?? lines[0] ?? c.meaning_ja;
+  // A bare reading like "ひとつ。" says nothing: add the next sense.
+  if (!SENSE_OVERRIDES[c.kanji] && line.length < 7 && lines[1]) line = `${line} ${lines[1]}`;
   return line.length > 48 ? line.slice(0, 47) + "…" : line;
 }
 
@@ -85,10 +101,10 @@ export interface ChoiceQuestion {
 }
 
 export function meaningChoice(card: Card, pool: Card[], rng: () => number = Math.random): ChoiceQuestion {
-  const correct = firstSense(card.content.meaning_ja);
+  const correct = firstSense(card.content);
   const wrong = new Set<string>();
   for (const c of shuffle(pool, rng)) {
-    const s = firstSense(c.content.meaning_ja);
+    const s = firstSense(c.content);
     if (c.id !== card.id && s !== correct) wrong.add(s);
     if (wrong.size === 3) break;
   }

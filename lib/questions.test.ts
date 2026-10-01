@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstSense, readings, pickWord, meaningChoice, readingChoice, type Card } from "./questions";
+import { firstSense, readings, pickWord, meaningChoice, readingChoice, SENSE_OVERRIDES, type Card } from "./questions";
 import data from "../data/kanji.json";
 
 const cards: Card[] = (data as any[])
@@ -9,8 +9,23 @@ const by = (k: string) => cards.find((c) => c.content.kanji === k)!;
 
 describe("parsing", () => {
   it("firstSense strips markers and header lines", () => {
-    expect(firstSense(by("水").content.meaning_ja)).toMatch(/^みず。/);
-    expect(firstSense(by("雨").content.meaning_ja)).toMatch(/^あめ。/);
+    expect(firstSense(by("水").content)).toMatch(/^みず。/);
+    expect(firstSense(by("雨").content)).toMatch(/^あめ。/);
+  });
+  it("uses the everyday sense for 町, 本 and 文", () => {
+    expect(firstSense(by("町").content)).toMatch(/^まち/);
+    expect(firstSense(by("本").content)).toMatch(/書物/);
+    expect(firstSense(by("文").content)).toMatch(/文字/);
+  });
+  it("every override is a real line of that kanji's definition", () => {
+    for (const [k, v] of Object.entries(SENSE_OVERRIDES)) {
+      const text = by(k).content.meaning_ja.replace(/[①-⑳]\s*/g, "");
+      expect(text).toContain(v);
+    }
+  });
+  it("bare readings get the next sense appended", () => {
+    expect(firstSense(by("一").content).length).toBeGreaterThan(8);
+    expect(firstSense(by("三").content)).toMatch(/^みっつ。 /);
   });
   it("readings joins okurigana and splits on both yomi", () => {
     const r = readings(by("学").content);

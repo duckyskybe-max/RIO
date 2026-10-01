@@ -45,7 +45,7 @@ export async function POST(req: Request) {
   const user = [
     `Task: ${brief}`,
     `Kanji: ${c.kanji}`,
-    `Reference meaning (Japanese dictionary): ${firstSense(c.meaning_ja)} | full: ${c.meaning_ja.replace(/\n/g, " ")}`,
+    `Reference meaning (Japanese dictionary): ${firstSense(c)} | full: ${c.meaning_ja.replace(/\n/g, " ")}`,
     `Valid readings: ${readings(c).join("、")}`,
     word ? `Word shown: ${word}` : "",
     sentence ? `Sentence shown: ${sentence}` : "",

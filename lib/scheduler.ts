@@ -16,9 +16,9 @@ export const MAX_BOX = 6;
 
 /** Answering faster than this counts as "fluent". */
 export const FAST_MS: Record<TaskType, number> = {
-  meaning_choice: 8000,
+  meaning_choice: 20000,
   meaning_recall: 20000,
-  reading_choice: 8000,
+  reading_choice: 20000,
   word_reading: 20000,
   sentence: 40000,
   explain: 90000,

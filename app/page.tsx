@@ -45,7 +45,7 @@ export default function Study() {
 
   const cards = useRef<Card[]>([]);
   const states = useRef<Map<string, State>>(new Map());
-  const newPerDay = useRef(5);
+  const newPerDay = useRef(50);
   const shownAt = useRef(0);
   const last = useRef("");
 
@@ -119,7 +119,7 @@ export default function Study() {
         fetch("/api/status").then((r) => r.json()),
       ]);
       setName(prof.data?.display_name ?? "");
-      newPerDay.current = prof.data?.new_per_day ?? 5;
+      newPerDay.current = prof.data?.new_per_day ?? 50;
       cards.current = (cs.data ?? []) as Card[];
       states.current = new Map(((st.data ?? []) as State[]).map((s) => [s.card_id, s]));
       setLlm(!!status.llm);
