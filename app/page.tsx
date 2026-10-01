@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { LLM_TASKS, review, taskForBox, type TaskType, type Verdict } from "@/lib/scheduler";
+import { enqueue, takeReady, tick, type RetryItem } from "@/lib/retry";
 import { meaningChoice, pickWord, readingChoice, type Card, type ChoiceQuestion } from "@/lib/questions";
 
 interface State { card_id: string; box: number; streak: number; lapses: number; next_review: string; introduced_at: string }
@@ -14,6 +15,7 @@ interface Question {
   choice?: ChoiceQuestion;
   word?: string;
   sentence?: string;
+  retry?: boolean;
 }
 interface Result { verdict: Verdict; en: string; ja: string; picked?: string }
 
@@ -48,6 +50,7 @@ export default function Study() {
   const newPerDay = useRef(50);
   const shownAt = useRef(0);
   const last = useRef("");
+  const retries = useRef<RetryItem[]>([]);
 
   const token = async () => (await supabase.auth.getSession()).data.session?.access_token ?? "";
   const api = async (path: string, body: unknown) => {
@@ -76,7 +79,15 @@ export default function Study() {
       const usable = (s: State) => llm || !LLM_TASKS.includes(taskForBox(s.box));
       const due = [...states.current.values()].filter((s) => new Date(s.next_review).getTime() <= now && usable(s))
         .sort((a, b) => +new Date(a.next_review) - +new Date(b.next_review));
-      let pick = due.find((s) => s.card_id !== last.current) ?? due[0];
+      let isRetry = false;
+      let pick: State | undefined;
+      const ready = takeReady(retries.current, false);
+      if (ready) {
+        retries.current = ready.rest;
+        const s = states.current.get(ready.cardId);
+        if (s && usable(s)) { pick = s; isRetry = true; }
+      }
+      if (!pick) pick = due.find((s) => s.card_id !== last.current) ?? due[0];
 
       if (!pick) {
         const today = startOfToday().getTime();
@@ -91,6 +102,15 @@ export default function Study() {
         }
       }
       if (!pick) {
+        // Nothing else to ask: bring a missed kanji back now instead of finishing.
+        const forced = takeReady(retries.current, true);
+        if (forced) {
+          retries.current = forced.rest;
+          const s = states.current.get(forced.cardId);
+          if (s && usable(s)) { pick = s; isRetry = true; }
+        }
+      }
+      if (!pick) {
         const upcoming = [...states.current.values()].filter(usable).map((s) => +new Date(s.next_review)).sort((a, b) => a - b)[0];
         setDoneMsg(upcoming ? `All done for now! Next review ${new Date(upcoming).toLocaleString()}.` : "All done for today! Come back tomorrow for new kanji.");
         return;
@@ -98,7 +118,7 @@ export default function Study() {
       setDoneMsg("");
       const card = cards.current.find((c) => c.id === pick!.card_id)!;
       const question = await build(card, pick);
-      setQ(question);
+      setQ(question ? { ...question, retry: isRetry } : question);
       shownAt.current = performance.now();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -131,16 +151,26 @@ export default function Study() {
 
   async function record(verdict: Verdict, ms: number, ans: string, extra: { error_type?: string; feedback?: string }) {
     if (!q) return;
-    const out = review({ box: q.state.box, streak: q.state.streak, lapses: q.state.lapses }, verdict, ms);
-    const upd = { box: out.box, streak: out.streak, lapses: out.lapses, next_review: out.nextReview.toISOString(), updated_at: new Date().toISOString() };
-    states.current.set(q.card.id, { ...q.state, ...upd });
+    const cur = q.state;
+    let boxAfter = cur.box;
+    let write: Promise<unknown> = Promise.resolve();
+    if (!q.retry) {
+      const out = review({ box: cur.box, streak: cur.streak, lapses: cur.lapses }, verdict, ms);
+      boxAfter = out.box;
+      const upd = { box: out.box, streak: out.streak, lapses: out.lapses, next_review: out.nextReview.toISOString(), updated_at: new Date().toISOString() };
+      states.current.set(q.card.id, { ...cur, ...upd });
+      write = Promise.resolve(supabase.from("card_state").update(upd).eq("user_id", uid).eq("card_id", q.card.id));
+    }
+    // A missed kanji comes back within the next few questions; a retry that is missed again goes back in the queue.
+    if (verdict === "wrong") retries.current = enqueue(retries.current, q.card.id);
+    retries.current = tick(retries.current, q.card.id);
     last.current = q.card.id;
     await Promise.all([
-      supabase.from("card_state").update(upd).eq("user_id", uid).eq("card_id", q.card.id),
+      write,
       supabase.from("attempts").insert({
         user_id: uid, card_id: q.card.id, task_type: q.task, answer: ans, verdict,
         error_type: extra.error_type ?? null, feedback: extra.feedback ?? null,
-        response_ms: Math.round(ms), box_before: q.state.box, box_after: out.box,
+        response_ms: Math.round(ms), box_before: cur.box, box_after: boxAfter, is_retry: !!q.retry,
       }),
     ]);
     setCounts((c) => ({ done: c.done + 1, correct: c.correct + (verdict === "correct" ? 1 : 0) }));
@@ -188,7 +218,7 @@ export default function Study() {
 
       {q && (
         <div className="card">
-          <span className="tag">{BOX_LABEL[q.state.box]}</span>
+          <span className="tag">{BOX_LABEL[q.state.box]}</span>{q.retry && <span className="tag" style={{ marginLeft: 6 }}>↻ try again</span>}
           {q.task === "word_reading" ? <div className="kanji" style={{ fontSize: 72 }}>{q.word}</div>
             : q.task === "sentence" ? <div className="sentence">{q.sentence}</div>
             : <div className="kanji">{q.card.content.kanji}</div>}
