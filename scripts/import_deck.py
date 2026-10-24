@@ -36,6 +36,9 @@ for flds, tags in rows:
         "words": clean(f[9]),
         "level_tag": level.group(1) if level else None,
     })
+    pic = f"/cards/{int(f[0])}.webp"
+    if (pathlib.Path(__file__).resolve().parent.parent / "public" / pic.lstrip("/")).exists():
+        cards[-1]["picture"] = pic
 
 out.parent.mkdir(exist_ok=True)
 out.write_text(json.dumps(cards, ensure_ascii=False, indent=0))

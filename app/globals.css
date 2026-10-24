@@ -36,4 +36,23 @@ label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px
 .boxes b { display: block; font-size: 22px; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 td, th { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
-@media (max-width: 420px) { .kanji { font-size: 96px; } }
+.kanji.small { font-size: 56px; }
+.flash { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: center; margin: 8px 0 4px;
+  border: 1.5px solid var(--line); border-radius: 14px; overflow: hidden; }
+.flash-solo { grid-template-columns: 1fr; }
+.flash-main { padding: 6px; border-right: 1.5px dashed var(--line); display: flex; align-items: center; justify-content: center; min-height: 190px; }
+.flash-solo .flash-main { border-right: 0; min-height: 0; }
+.flash-main .kanji, .flash-main .sentence { margin: 0; }
+.flash-pic { display: flex; align-items: center; justify-content: center; padding: 8px; min-height: 190px; }
+.flash-pic img { max-width: 100%; max-height: 190px; object-fit: contain; }
+.pic-hidden { font-size: 56px; color: var(--line); font-weight: 700; }
+.pics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+button.pic-opt { background: #fff; border: 2px solid var(--line); border-radius: 12px; padding: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; min-height: 130px; }
+button.pic-opt img { max-width: 100%; max-height: 120px; object-fit: contain; }
+button.pic-opt:hover:enabled { border-color: var(--accent); }
+button.pic-opt.right { border-color: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 35%, transparent); }
+button.pic-opt.wrong { border-color: var(--bad); opacity: .6; }
+.back { margin-top: 12px; border-top: 1.5px dashed var(--line); padding-top: 10px; }
+.back-row { display: flex; align-items: baseline; gap: 10px; margin: 4px 0; }
+.back-yomi { font-size: 22px; }
+@media (max-width: 420px) { .kanji { font-size: 84px; } .flash-main, .flash-pic { min-height: 150px; } .flash-pic img { max-height: 150px; } }

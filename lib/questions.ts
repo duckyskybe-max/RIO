@@ -6,6 +6,8 @@ export interface Content {
   radical: string;
   meaning_ja: string;
   words: string;
+  /** Path of the card picture under /public, e.g. /cards/12.webp */
+  picture?: string;
 }
 export interface Card {
   id: string;
@@ -53,6 +55,29 @@ export function readings(c: Content): string[] {
     }
   }
   return [...out];
+}
+
+const TIER_ORDER = ["小", "中", "高", "外"];
+
+/** Readings from one yomi field, keeping the easiest school tier that has any (小 before 中 ...). */
+function tierReadings(text: string): string[] {
+  const byTier: Record<string, string[]> = {};
+  for (const line of text.split("\n")) {
+    const m = line.trim().match(/^［(.)］(.*)$/);
+    const tag = m?.[1] ?? "";
+    const body = m ? m[2] : line;
+    for (const raw of body.split(/[、,]/)) {
+      const r = raw.replace(/[（(]([^）)]*)[）)]/g, "$1").trim();
+      if (r) (byTier[tag] ??= []).push(r);
+    }
+  }
+  const tag = [...TIER_ORDER, ""].find((t) => byTier[t]?.length);
+  return tag === undefined ? [] : [...new Set(byTier[tag])].slice(0, 8);
+}
+
+/** What the back of a card shows: 音読み (on) and 訓読み (kun), elementary-school readings first. */
+export function readingsByType(c: Content): { on: string[]; kun: string[] } {
+  return { on: tierReadings(c.on_yomi), kun: tierReadings(c.kun_yomi) };
 }
 
 /** Words grouped by the deck's school-level tag: ［小］ elementary, ［中］ junior high, ... */
@@ -122,4 +147,17 @@ export function readingChoice(card: Card, pool: Card[], rng: () => number = Math
     if (wrong.size === 3) break;
   }
   return { correct, options: shuffle([correct, ...wrong], rng) };
+}
+
+export interface PictureQuestion {
+  options: Card[]; // 4 cards, each with a picture
+  correctId: string;
+}
+
+/** Box 1: show the kanji, pick its picture from four. Null when pictures are missing. */
+export function pictureChoice(card: Card, pool: Card[], rng: () => number = Math.random): PictureQuestion | null {
+  if (!card.content.picture) return null;
+  const others = shuffle(pool.filter((c) => c.id !== card.id && c.content.picture), rng).slice(0, 3);
+  if (others.length < 3) return null;
+  return { correctId: card.id, options: shuffle([card, ...others], rng) };
 }

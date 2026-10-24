@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { LLM_TASKS, review, taskForBox, type TaskType, type Verdict } from "@/lib/scheduler";
 import { enqueue, takeReady, tick, type RetryItem } from "@/lib/retry";
-import { meaningChoice, pickWord, readingChoice, type Card, type ChoiceQuestion } from "@/lib/questions";
+import { firstSense, meaningChoice, pickWord, pictureChoice, readingChoice, readingsByType, type Card, type ChoiceQuestion, type Content, type PictureQuestion } from "@/lib/questions";
 
 interface State { card_id: string; box: number; streak: number; lapses: number; next_review: string; introduced_at: string }
 interface Question {
@@ -13,6 +13,7 @@ interface Question {
   state: State;
   task: TaskType;
   choice?: ChoiceQuestion;
+  picChoice?: PictureQuestion;
   word?: string;
   sentence?: string;
   retry?: boolean;
@@ -20,14 +21,26 @@ interface Question {
 interface Result { verdict: Verdict; en: string; ja: string; picked?: string }
 
 const PROMPTS: Record<TaskType, string> = {
-  meaning_choice: "Pick the meaning · いみを えらぼう",
+  meaning_choice: "Which picture goes with this kanji? · えを えらぼう",
   meaning_recall: "What does it mean? · いみは？",
   reading_choice: "Pick a reading · よみを えらぼう",
   word_reading: "How is this word read? · よみは？",
   sentence: "Read the kanji in the sentence, and say what the sentence means",
   explain: "🐉 Creature challenge: tell everything you remember — meaning, readings, a word, or make up a creature!",
 };
-const BOX_LABEL = ["", "Box 1 · pictures of meaning", "Box 2 · recall", "Box 3 · readings", "Box 4 · in a word", "Box 5 · in a sentence", "Box 6 · creature challenge"];
+const BOX_LABEL = ["", "Box 1 · pick the picture", "Box 2 · recall", "Box 3 · readings", "Box 4 · in a word", "Box 5 · in a sentence", "Box 6 · creature challenge"];
+
+/** Back of the flash card: the readings he is here to learn, plus the meaning. */
+function Back({ c }: { c: Content }) {
+  const r = readingsByType(c);
+  return (
+    <div className="back">
+      <div className="back-row"><span className="tag">音</span><span className="back-yomi">{r.on.join("・") || "—"}</span></div>
+      <div className="back-row"><span className="tag">訓</span><span className="back-yomi">{r.kun.join("・") || "—"}</span></div>
+      <div className="muted" style={{ marginTop: 6 }}>{firstSense(c)}</div>
+    </div>
+  );
+}
 
 const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 
@@ -61,7 +74,10 @@ export default function Study() {
   const build = useCallback(async (card: Card, state: State): Promise<Question | null> => {
     const task = taskForBox(state.box);
     const base: Question = { card, state, task };
-    if (task === "meaning_choice") return { ...base, choice: meaningChoice(card, cards.current) };
+    if (task === "meaning_choice") {
+      const pc = pictureChoice(card, cards.current);
+      return pc ? { ...base, picChoice: pc } : { ...base, choice: meaningChoice(card, cards.current) };
+    }
     if (task === "reading_choice") return { ...base, choice: readingChoice(card, cards.current) };
     if (task === "word_reading") return { ...base, word: pickWord(card.content) ?? card.content.kanji };
     if (task === "sentence") {
@@ -184,6 +200,14 @@ export default function Study() {
     await record(verdict, ms, opt, {});
   }
 
+  async function pickPicture(opt: Card) {
+    if (!q?.picChoice || result) return;
+    const ms = performance.now() - shownAt.current;
+    const verdict: Verdict = opt.id === q.picChoice.correctId ? "correct" : "wrong";
+    setResult({ verdict, en: verdict === "correct" ? "Correct! ⭕" : `Not quite. This is the picture for ${opt.content.kanji}.`, ja: "", picked: opt.id });
+    await record(verdict, ms, `picture:${opt.content.kanji}`, {});
+  }
+
   async function submitTyped() {
     if (!q || result) return;
     const ms = performance.now() - shownAt.current;
@@ -219,11 +243,33 @@ export default function Study() {
       {q && (
         <div className="card">
           <span className="tag">{BOX_LABEL[q.state.box]}</span>{q.retry && <span className="tag" style={{ marginLeft: 6 }}>↻ try again</span>}
-          {q.task === "word_reading" ? <div className="kanji" style={{ fontSize: 72 }}>{q.word}</div>
-            : q.task === "sentence" ? <div className="sentence">{q.sentence}</div>
-            : <div className="kanji">{q.card.content.kanji}</div>}
+          <div className={`flash ${q.picChoice ? "flash-solo" : ""}`}>
+            <div className="flash-main">
+              {q.task === "word_reading" ? <div className="kanji small">{q.word}</div>
+                : q.task === "sentence" ? <div className="sentence">{q.sentence}</div>
+                : <div className="kanji">{q.card.content.kanji}</div>}
+            </div>
+            {!q.picChoice && (
+              <div className="flash-pic">
+                {q.card.content.picture && (q.task === "reading_choice" || result)
+                  ? <img src={q.card.content.picture} alt="" />
+                  : <div className="pic-hidden">?</div>}
+              </div>
+            )}
+          </div>
           <div className="prompt">{PROMPTS[q.task]}</div>
           {q.task === "sentence" && <p className="prompt">Target kanji: <b>{q.card.content.kanji}</b></p>}
+
+          {q.picChoice && (
+            <div className="pics">
+              {q.picChoice.options.map((o) => (
+                <button key={o.id} disabled={!!result} onClick={() => pickPicture(o)}
+                  className={`pic-opt ${result ? (o.id === q.picChoice!.correctId ? "right" : o.id === result.picked ? "wrong" : "") : ""}`}>
+                  <img src={o.content.picture} alt="" />
+                </button>
+              ))}
+            </div>
+          )}
 
           {q.choice ? (
             <div className="opts">
@@ -246,6 +292,7 @@ export default function Study() {
                 <div>{result.en}</div>
                 {result.ja && <div className="muted">{result.ja}</div>}
               </div>
+              <Back c={q.card.content} />
               <button className="primary" onClick={next}>Next →</button>
             </>
           )}

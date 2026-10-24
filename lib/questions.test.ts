@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { firstSense, readings, pickWord, meaningChoice, readingChoice, SENSE_OVERRIDES, type Card } from "./questions";
+import { firstSense, readings, pickWord, meaningChoice, readingChoice, SENSE_OVERRIDES, readingsByType, pictureChoice, type Card } from "./questions";
 import data from "../data/kanji.json";
 
 const cards: Card[] = (data as any[])
   .filter((c) => c.kanken_level === "10")
-  .map((c) => ({ id: String(c.position), position: c.position, level: "10", content: c }));
+  .map((c) => ({ id: String(c.position), position: c.position, level: "10", content: { ...c, picture: `/cards/${c.position}.webp` } }));
 const by = (k: string) => cards.find((c) => c.content.kanji === k)!;
 
 describe("parsing", () => {
@@ -53,5 +53,41 @@ describe("choices", () => {
     const own = readings(c.content);
     const q = readingChoice(c, cards);
     expect(q.options.filter((o) => own.includes(o))).toEqual([q.correct]);
+  });
+});
+
+describe("card back", () => {
+  it("shows elementary readings split into on and kun", () => {
+    const r = readingsByType(by("学").content);
+    expect(r.on).toEqual(["ガク"]);
+    expect(r.kun).toEqual(["まなぶ"]);
+  });
+  it("drops the harder-tier readings when an elementary one exists", () => {
+    const r = readingsByType(by("百").content); // ヒャク is 小, ハク is 外
+    expect(r.on).toEqual(["ヒャク"]);
+  });
+  it("falls back to a harder tier rather than showing nothing", () => {
+    expect(readingsByType(by("川").content).on).toEqual(["セン"]); // only tagged 中
+  });
+  it("every kanji has at least one reading to show", () => {
+    for (const c of cards) {
+      const r = readingsByType(c.content);
+      expect(r.on.length + r.kun.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("pictureChoice", () => {
+  it("offers four distinct pictures including the right one", () => {
+    for (const c of cards) {
+      const q = pictureChoice(c, cards)!;
+      expect(q.options).toHaveLength(4);
+      expect(new Set(q.options.map((o) => o.id)).size).toBe(4);
+      expect(q.options.map((o) => o.id)).toContain(q.correctId);
+    }
+  });
+  it("returns null without a picture", () => {
+    const c = { ...cards[0], content: { ...cards[0].content, picture: undefined } };
+    expect(pictureChoice(c, cards)).toBeNull();
   });
 });
