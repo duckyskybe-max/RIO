@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ABC フラッシュカード</title>
+<style>
+  :root {
+    --bg: #fff7e6; --ink: #2b2b3a; --card: #ffffff; --accent: #ff7a59;
+    --good: #3bb273; --bad: #e5484d; --blue: #4d9de0; --shadow: 0 8px 24px rgba(0,0,0,.12);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    padding: max(12px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  }
+  header { width: 100%; max-width: 480px; display: flex; gap: 8px; margin-bottom: 8px; }
+  header button { flex: 1; white-space: nowrap; padding: 12px 4px; font-size: 14px; }
+  button {
+    font: inherit; font-weight: 700; border: 0; border-radius: 16px; padding: 12px 14px;
+    background: #fff; color: var(--ink); box-shadow: 0 3px 0 rgba(0,0,0,.15); cursor: pointer;
+  }
+  button:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.15); }
+  button.on { background: var(--accent); color: #fff; }
+  main { width: 100%; max-width: 480px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+  .progress { text-align: center; font-weight: 700; opacity: .7; }
+  .bar { height: 10px; background: #fff; border-radius: 99px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--good); transition: width .3s; }
+
+  /* flip card */
+  .scene { perspective: 1000px; height: min(52vh, 420px); min-height: 300px; }
+  .card { position: relative; width: 100%; height: 100%; transition: transform .5s; transform-style: preserve-3d; cursor: pointer; }
+  .card.flipped { transform: rotateY(180deg); }
+  .face {
+    position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    background: var(--card); border-radius: 28px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px;
+  }
+  .back { transform: rotateY(180deg); }
+  .big { font-size: clamp(110px, 38vw, 190px); font-weight: 800; line-height: 1; color: var(--accent); letter-spacing: 4px; }
+  .hint { opacity: .55; font-size: 14px; }
+  .kata { font-size: 44px; font-weight: 800; color: var(--blue); }
+  .emoji { font-size: 84px; line-height: 1; }
+  .word { font-size: 36px; font-weight: 800; }
+  .word b { color: var(--accent); }
+  .wordkata { font-size: 22px; opacity: .75; }
+  .row { display: flex; gap: 10px; }
+  .row button { flex: 1; font-size: 18px; }
+  .know { background: var(--good); color: #fff; }
+  .again { background: var(--bad); color: #fff; }
+
+  /* quiz */
+  .q { text-align: center; }
+  .q .big { display: block; margin: 8px 0 16px; }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .choices button { font-size: 30px; padding: 22px 8px; }
+  .choices button.right { background: var(--good); color: #fff; }
+  .choices button.wrong { background: var(--bad); color: #fff; }
+  .msg { text-align: center; font-size: 28px; font-weight: 800; min-height: 40px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <button id="modeLearn" class="on">📖 べんきょう</button>
+  <button id="modeQuiz">🎯 クイズ</button>
+  <button id="modeList">🔤 ぜんぶ</button>
+</header>
+
+<main>
+  <div class="progress"><span id="progText"></span><div class="bar"><i id="progBar"></i></div></div>
+
+  <!-- learn -->
+  <section id="learn" style="display:contents">
+    <div class="scene"><div class="card" id="card">
+      <div class="face front">
+        <div class="big" id="fLetter"></div>
+        <div class="hint">タップして うらがえす 👆</div>
+      </div>
+      <div class="face back">
+        <div class="kata" id="bKata"></div>
+        <div class="emoji" id="bEmoji"></div>
+        <div class="word" id="bWord"></div>
+        <div class="wordkata" id="bWordKata"></div>
+      </div>
+    </div></div>
+    <div class="row">
+      <button id="prev">◀︎</button>
+      <button id="say">🔊 きく</button>
+      <button id="next">▶︎</button>
+    </div>
+    <div class="row">
+      <button class="again" id="again">もういちど</button>
+      <button class="know" id="know">おぼえた！</button>
+    </div>
+  </section>
+
+  <!-- quiz -->
+  <section id="quiz" class="hidden q">
+    <span class="big" id="qLetter"></span>
+    <div class="msg" id="qMsg">どれかな？</div>
+    <div class="choices" id="choices"></div>
+    <div class="row" style="margin-top:12px"><button id="qSay">🔊 きく</button><button id="qNext">つぎ ▶︎</button></div>
+  </section>
+
+  <!-- list -->
+  <section id="list" class="hidden">
+    <div class="choices" id="grid" style="grid-template-columns:repeat(4,1fr);gap:8px"></div>
+  </section>
+</main>
+
+<script>
+const L = [
+ ["A","エー","🍎","Apple","アップル"],["B","ビー","⚽","Ball","ボール"],["C","シー","🐱","Cat","キャット"],
+ ["D","ディー","🐶","Dog","ドッグ"],["E","イー","🥚","Egg","エッグ"],["F","エフ","🐟","Fish","フィッシュ"],
+ ["G","ジー","🍇","Grape","グレープ"],["H","エイチ","🎩","Hat","ハット"],["I","アイ","🍦","Ice cream","アイスクリーム"],
+ ["J","ジェー","🧃","Juice","ジュース"],["K","ケー","🪁","Kite","カイト"],["L","エル","🦁","Lion","ライオン"],
+ ["M","エム","🌙","Moon","ムーン"],["N","エヌ","👃","Nose","ノーズ"],["O","オー","🍊","Orange","オレンジ"],
+ ["P","ピー","🍕","Pizza","ピザ"],["Q","キュー","👑","Queen","クイーン"],["R","アール","🐰","Rabbit","ラビット"],
+ ["S","エス","☀️","Sun","サン"],["T","ティー","🐯","Tiger","タイガー"],["U","ユー","☂️","Umbrella","アンブレラ"],
+ ["V","ブイ","🎻","Violin","バイオリン"],["W","ダブリュー","🐳","Whale","ホエール"],["X","エックス","🩻","X-ray","エックスレイ"],
+ ["Y","ワイ","🪀","Yo-yo","ヨーヨー"],["Z","ゼット","🦓","Zebra","ゼブラ"]
+].map(([c,k,e,w,wk]) => ({c,k,e,w,wk}));
+
+const $ = id => document.getElementById(id);
+let known = new Set();
+try { known = new Set(JSON.parse(localStorage.getItem("abc-known") || "[]")); } catch {}
+const save = () => { try { localStorage.setItem("abc-known", JSON.stringify([...known])); } catch {} };
+
+let idx = 0, mode = "learn", answer = null, locked = false;
+
+/* speech: say the letter name or the word in English */
+function speak(text) {
+  if (!("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-US"; u.rate = .75;
+  speechSynthesis.speak(u);
+}
+const sayLetter = l => speak(l.c.toLowerCase() === "a" ? "ay" : l.c);
+
+function updateProgress() {
+  $("progText").textContent = `おぼえた ${known.size} / 26`;
+  $("progBar").style.width = (known.size / 26 * 100) + "%";
+}
+
+/* learn */
+function showCard() {
+  const l = L[idx];
+  $("card").classList.remove("flipped");
+  $("fLetter").textContent = l.c + l.c.toLowerCase();
+  $("bKata").textContent = l.k;
+  $("bEmoji").textContent = l.e;
+  $("bWord").innerHTML = `<b>${l.w[0]}</b>${l.w.slice(1)}`;
+  $("bWordKata").textContent = l.wk;
+  updateProgress();
+}
+const go = d => { idx = (idx + d + 26) % 26; showCard(); setTimeout(() => sayLetter(L[idx]), 150); };
+$("card").onclick = () => {
+  const f = $("card").classList.toggle("flipped");
+  speak(f ? L[idx].w : L[idx].c);
+};
+$("prev").onclick = () => go(-1);
+$("next").onclick = () => go(1);
+$("say").onclick = () => sayLetter(L[idx]);
+$("know").onclick = () => { known.add(idx); save(); go(1); };
+$("again").onclick = () => { known.delete(idx); save(); go(1); };
+
+/* quiz: show a letter, pick its katakana name */
+function newQuestion() {
+  locked = false;
+  const pool = [...Array(26).keys()];
+  answer = pool[Math.floor(Math.random() * 26)];
+  const wrong = pool.filter(i => i !== answer).sort(() => Math.random() - .5).slice(0, 3);
+  const opts = [answer, ...wrong].sort(() => Math.random() - .5);
+  $("qLetter").textContent = L[answer].c + L[answer].c.toLowerCase();
+  $("qMsg").textContent = "どれかな？";
+  $("choices").innerHTML = "";
+  opts.forEach(i => {
+    const b = document.createElement("button");
+    b.textContent = L[i].k;
+    b.onclick = () => pick(i, b);
+    $("choices").appendChild(b);
+  });
+  sayLetter(L[answer]);
+}
+function pick(i, btn) {
+  if (locked) return;
+  if (i === answer) {
+    locked = true;
+    btn.classList.add("right");
+    $("qMsg").textContent = "せいかい！🎉";
+    known.add(answer); save(); updateProgress();
+    setTimeout(newQuestion, 1400);
+  } else {
+    btn.classList.add("wrong");
+    $("qMsg").textContent = "もういちど！";
+  }
+}
+$("qSay").onclick = () => sayLetter(L[answer]);
+$("qNext").onclick = newQuestion;
+
+/* list */
+function buildGrid() {
+  $("grid").innerHTML = "";
+  L.forEach((l, i) => {
+    const b = document.createElement("button");
+    b.textContent = l.c;
+    b.style.fontSize = "26px";
+    if (known.has(i)) b.classList.add("right");
+    b.onclick = () => { idx = i; setMode("learn"); sayLetter(l); };
+    $("grid").appendChild(b);
+  });
+}
+
+function setMode(m) {
+  mode = m;
+  $("learn").style.display = m === "learn" ? "contents" : "none";
+  $("quiz").classList.toggle("hidden", m !== "quiz");
+  $("list").classList.toggle("hidden", m !== "list");
+  $("modeLearn").classList.toggle("on", m === "learn");
+  $("modeQuiz").classList.toggle("on", m === "quiz");
+  $("modeList").classList.toggle("on", m === "list");
+  if (m === "learn") showCard();
+  if (m === "quiz") newQuestion();
+  if (m === "list") { buildGrid(); updateProgress(); }
+}
+$("modeLearn").onclick = () => setMode("learn");
+$("modeQuiz").onclick = () => setMode("quiz");
+$("modeList").onclick = () => setMode("list");
+
+setMode("learn");
+</script>
+</body>
+</html>
