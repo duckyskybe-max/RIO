@@ -23,14 +23,17 @@
     background: #fff; color: var(--ink); box-shadow: 0 3px 0 rgba(0,0,0,.15); cursor: pointer;
   }
   button:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.15); }
+  button:disabled { opacity: .5; }
   button.on { background: var(--accent); color: #fff; }
   main { width: 100%; max-width: 480px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
-  .progress { text-align: center; font-weight: 700; opacity: .7; }
-  .bar { height: 10px; background: #fff; border-radius: 99px; overflow: hidden; }
-  .bar > i { display: block; height: 100%; width: 0; background: var(--good); transition: width .3s; }
+  .progress { text-align: center; font-weight: 700; }
+  .counts { display: flex; justify-content: center; gap: 14px; font-size: 14px; opacity: .8; }
+  .counts b { font-size: 18px; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 99px; color: #fff; background: var(--blue); }
+  .tag.retry { background: var(--bad); }
 
   /* flip card */
-  .scene { perspective: 1000px; height: min(52vh, 420px); min-height: 300px; }
+  .scene { perspective: 1000px; height: min(48vh, 400px); min-height: 280px; }
   .card { position: relative; width: 100%; height: 100%; transition: transform .5s; transform-style: preserve-3d; cursor: pointer; }
   .card.flipped { transform: rotateY(180deg); }
   .face {
@@ -58,22 +61,45 @@
   .choices button { font-size: 30px; padding: 22px 8px; }
   .choices button.right { background: var(--good); color: #fff; }
   .choices button.wrong { background: var(--bad); color: #fff; }
+  .box1 { background: #ffd9d9 !important; } .box2 { background: #ffe9c7 !important; } .box3 { background: #fff6b8 !important; }
+  .box4 { background: #d8f2c8 !important; } .box5 { background: #b8e6c1 !important; } .box6 { background: var(--good) !important; color: #fff; }
   .msg { text-align: center; font-size: 28px; font-weight: 800; min-height: 40px; }
+
+  /* done + auth */
+  .panel { background: var(--card); border-radius: 28px; box-shadow: var(--shadow); padding: 28px 20px; text-align: center; display: flex; flex-direction: column; gap: 12px; }
+  .panel h2 { margin: 0; font-size: 28px; }
+  .panel input { font: inherit; font-size: 18px; padding: 14px; border: 2px solid #e6dcc6; border-radius: 14px; width: 100%; }
+  .panel .small { font-size: 13px; opacity: .65; }
+  .err { color: var(--bad); font-weight: 700; min-height: 20px; font-size: 14px; }
   .hidden { display: none !important; }
 </style>
 </head>
 <body>
-<header>
+<header id="tabs" class="hidden">
   <button id="modeLearn" class="on">📖 べんきょう</button>
   <button id="modeQuiz">🎯 クイズ</button>
   <button id="modeList">🔤 ぜんぶ</button>
 </header>
 
 <main>
-  <div class="progress"><span id="progText"></span><div class="bar"><i id="progBar"></i></div></div>
+  <!-- login -->
+  <section id="auth" class="panel">
+    <h2>🔤 ABC</h2>
+    <input id="email" type="email" autocomplete="username" placeholder="メール / email">
+    <input id="password" type="password" autocomplete="current-password" placeholder="パスワード / password">
+    <div class="err" id="authErr"></div>
+    <button id="signin" class="know">ログイン</button>
+    <button id="signup">しんき とうろく</button>
+    <div class="small">Use the same account as the kanji study app.</div>
+  </section>
+
+  <div id="statusBar" class="hidden">
+    <div class="counts"><span>あたらしい <b id="cNew">0</b></span><span>ふくしゅう <b id="cDue">0</b></span><span>おぼえた <b id="cKnown">0</b>/26</span></div>
+  </div>
 
   <!-- learn -->
-  <section id="learn" style="display:contents">
+  <section id="learn" style="display:none; flex-direction:column; gap:12px">
+    <div style="text-align:center; min-height:22px"><span class="tag" id="tagL"></span></div>
     <div class="scene"><div class="card" id="card">
       <div class="face front">
         <div class="big" id="fLetter"></div>
@@ -86,11 +112,7 @@
         <div class="wordkata" id="bWordKata"></div>
       </div>
     </div></div>
-    <div class="row">
-      <button id="prev">◀︎</button>
-      <button id="say">🔊 きく</button>
-      <button id="next">▶︎</button>
-    </div>
+    <div class="row"><button id="say">🔊 きく</button></div>
     <div class="row">
       <button class="again" id="again">もういちど</button>
       <button class="know" id="know">おぼえた！</button>
@@ -99,39 +121,46 @@
 
   <!-- quiz -->
   <section id="quiz" class="hidden q">
+    <div style="min-height:22px"><span class="tag" id="tagQ"></span></div>
     <span class="big" id="qLetter"></span>
     <div class="msg" id="qMsg">どれかな？</div>
     <div class="choices" id="choices"></div>
-    <div class="row" style="margin-top:12px"><button id="qSay">🔊 きく</button><button id="qNext">つぎ ▶︎</button></div>
+    <div class="row" style="margin-top:12px"><button id="qSay">🔊 きく</button></div>
+  </section>
+
+  <!-- done -->
+  <section id="done" class="hidden panel">
+    <h2>きょうは おわり！🎉</h2>
+    <div id="doneMsg"></div>
   </section>
 
   <!-- list -->
   <section id="list" class="hidden">
     <div class="choices" id="grid" style="grid-template-columns:repeat(4,1fr);gap:8px"></div>
+    <div class="small" style="text-align:center; margin-top:12px">
+      <button id="signout" style="font-size:14px">ログアウト</button>
+    </div>
   </section>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
-const L = [
- ["A","エー","🍎","Apple","アップル"],["B","ビー","⚽","Ball","ボール"],["C","シー","🐱","Cat","キャット"],
- ["D","ディー","🐶","Dog","ドッグ"],["E","イー","🥚","Egg","エッグ"],["F","エフ","🐟","Fish","フィッシュ"],
- ["G","ジー","🍇","Grape","グレープ"],["H","エイチ","🎩","Hat","ハット"],["I","アイ","🍦","Ice cream","アイスクリーム"],
- ["J","ジェー","🧃","Juice","ジュース"],["K","ケー","🪁","Kite","カイト"],["L","エル","🦁","Lion","ライオン"],
- ["M","エム","🌙","Moon","ムーン"],["N","エヌ","👃","Nose","ノーズ"],["O","オー","🍊","Orange","オレンジ"],
- ["P","ピー","🍕","Pizza","ピザ"],["Q","キュー","👑","Queen","クイーン"],["R","アール","🐰","Rabbit","ラビット"],
- ["S","エス","☀️","Sun","サン"],["T","ティー","🐯","Tiger","タイガー"],["U","ユー","☂️","Umbrella","アンブレラ"],
- ["V","ブイ","🎻","Violin","バイオリン"],["W","ダブリュー","🐳","Whale","ホエール"],["X","エックス","🩻","X-ray","エックスレイ"],
- ["Y","ワイ","🪀","Yo-yo","ヨーヨー"],["Z","ゼット","🦓","Zebra","ゼブラ"]
-].map(([c,k,e,w,wk]) => ({c,k,e,w,wk}));
+const SUPABASE_URL = "https://zvmbkxchzocvnnubjoju.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2bWJreGNoem9jdm5udWJqb2p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4NTA3MjYsImV4cCI6MjEwNjQyNjcyNn0.I05B1_ZYSHO_6q7e-b0S2rEPiPQYpvzKCpEGuhhnVoo";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* Leitner boxes, same scheme as the kanji deck (box 1-6). Days until next review per box. */
+const BOX_DAYS = [0, 1, 3, 7, 14, 30];
+const NEW_PER_DAY = 5;
+const nextReviewFor = box => box === 1
+  ? new Date(Date.now() + 10 * 60 * 1000)
+  : new Date(Date.now() + BOX_DAYS[box - 1] * 86400000);
 
 const $ = id => document.getElementById(id);
-let known = new Set();
-try { known = new Set(JSON.parse(localStorage.getItem("abc-known") || "[]")); } catch {}
-const save = () => { try { localStorage.setItem("abc-known", JSON.stringify([...known])); } catch {} };
+let user = null, cards = [], state = {}, queue = [], mode = "learn";
+let shownAt = 0, locked = false, introducedToday = 0;
 
-let idx = 0, mode = "learn", answer = null, locked = false;
-
-/* speech: say the letter name or the word in English */
+/* ---------- speech ---------- */
 function speak(text) {
   if (!("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
@@ -139,99 +168,210 @@ function speak(text) {
   u.lang = "en-US"; u.rate = .75;
   speechSynthesis.speak(u);
 }
-const sayLetter = l => speak(l.c.toLowerCase() === "a" ? "ay" : l.c);
+const sayLetter = c => speak(c.content.letter === "A" ? "ay" : c.content.letter);
 
-function updateProgress() {
-  $("progText").textContent = `おぼえた ${known.size} / 26`;
-  $("progBar").style.width = (known.size / 26 * 100) + "%";
+/* ---------- auth ---------- */
+async function credentials(fn) {
+  $("authErr").textContent = "";
+  const email = $("email").value.trim(), password = $("password").value;
+  if (!email || !password) { $("authErr").textContent = "メールとパスワードを いれてね"; return; }
+  const { data, error } = await fn({ email, password });
+  if (error) { $("authErr").textContent = error.message; return; }
+  if (!data.session) { $("authErr").textContent = "メールを かくにんしてから ログインしてね"; return; }
+  start(data.session.user);
+}
+$("signin").onclick = () => credentials(c => sb.auth.signInWithPassword(c));
+$("signup").onclick = () => credentials(c => sb.auth.signUp(c));
+$("signout").onclick = async () => { await sb.auth.signOut(); location.reload(); };
+
+/* ---------- data ---------- */
+async function loadAll() {
+  const { data: deck, error: e1 } = await sb.from("decks").select("id").eq("name", "English Alphabet").single();
+  if (e1) throw e1;
+  const { data: cs, error: e2 } = await sb.from("cards").select("id, position, content").eq("deck_id", deck.id).order("position");
+  if (e2) throw e2;
+  cards = cs;
+  const { data: st, error: e3 } = await sb.from("card_state").select("*").eq("user_id", user.id).in("card_id", cards.map(c => c.id));
+  if (e3) throw e3;
+  state = Object.fromEntries(st.map(s => [s.card_id, s]));
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  introducedToday = st.filter(s => new Date(s.introduced_at) >= midnight).length;
 }
 
-/* learn */
+function buildQueue() {
+  const now = Date.now();
+  const due = cards.filter(c => state[c.id] && new Date(state[c.id].next_review) <= now)
+    .sort((a, b) => new Date(state[a.id].next_review) - new Date(state[b.id].next_review));
+  const fresh = cards.filter(c => !state[c.id]).slice(0, Math.max(0, NEW_PER_DAY - introducedToday));
+  queue = [...due, ...fresh].map(card => ({ card, retry: false }));
+}
+
+/* Record the answer and move the card between boxes.
+   Right answer on a due/new card: up one box. Wrong: back to box 1 and asked again later this session.
+   Retries and early reviews are logged but do not move the box up. */
+async function grade(item, correct, taskType, answer) {
+  const c = item.card, prev = state[c.id];
+  const boxBefore = prev ? prev.box : 1;
+  const isDue = !prev || new Date(prev.next_review) <= Date.now();
+  let box = boxBefore, streak = prev ? prev.streak : 0, lapses = prev ? prev.lapses : 0;
+  if (!correct) { box = 1; streak = 0; lapses += 1; }
+  else if (!item.retry && isDue) { box = Math.min(6, boxBefore + 1); streak += 1; }
+  const changesSchedule = !correct || (!item.retry && isDue);
+  const row = {
+    user_id: user.id, card_id: c.id, box, streak, lapses, updated_at: new Date().toISOString(),
+    next_review: (changesSchedule ? nextReviewFor(box) : new Date(prev.next_review)).toISOString()
+  };
+  state[c.id] = { ...(prev || { introduced_at: new Date().toISOString() }), ...row };
+  if (!prev) introducedToday += 1;
+
+  queue.shift();
+  if (!correct) queue.push({ card: c, retry: true });
+
+  const attempt = {
+    user_id: user.id, card_id: c.id, task_type: taskType, answer,
+    verdict: correct ? "correct" : "wrong", response_ms: Math.round(Date.now() - shownAt),
+    box_before: boxBefore, box_after: box, is_retry: item.retry
+  };
+  const [r1, r2] = await Promise.all([
+    sb.from("card_state").upsert(row, { onConflict: "user_id,card_id" }),
+    sb.from("attempts").insert(attempt)
+  ]);
+  if (r1.error || r2.error) console.error("save failed", r1.error || r2.error);
+}
+
+/* ---------- views ---------- */
+function updateCounts() {
+  const now = Date.now();
+  $("cNew").textContent = queue.filter(q => !state[q.card.id]).length;
+  $("cDue").textContent = queue.filter(q => state[q.card.id]).length;
+  $("cKnown").textContent = cards.filter(c => state[c.id] && state[c.id].box >= 3).length;
+}
+const tagFor = item => item.retry ? ["もういちど", "retry"] : !state[item.card.id] ? ["あたらしい", ""] : ["ふくしゅう", ""];
+function setTag(el, item) {
+  const [t, cls] = tagFor(item);
+  el.textContent = t; el.className = "tag " + cls;
+}
+
+function render() {
+  updateCounts();
+  const empty = queue.length === 0;
+  $("learn").style.display = !empty && mode === "learn" ? "flex" : "none";
+  $("quiz").classList.toggle("hidden", empty || mode !== "quiz");
+  $("done").classList.toggle("hidden", !empty || mode === "list");
+  $("list").classList.toggle("hidden", mode !== "list");
+  $("statusBar").classList.remove("hidden");
+  if (mode === "list") { buildGrid(); return; }
+  if (empty) { showDone(); return; }
+  shownAt = Date.now(); locked = false;
+  mode === "learn" ? showCard() : showQuestion();
+}
+
+function showDone() {
+  const upcoming = Object.values(state).map(s => new Date(s.next_review)).filter(d => d > Date.now()).sort((a, b) => a - b)[0];
+  $("doneMsg").textContent = upcoming
+    ? `つぎは ${upcoming.toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} ごろ`
+    : "";
+}
+
 function showCard() {
-  const l = L[idx];
+  const item = queue[0], c = item.card.content;
   $("card").classList.remove("flipped");
-  $("fLetter").textContent = l.c + l.c.toLowerCase();
-  $("bKata").textContent = l.k;
-  $("bEmoji").textContent = l.e;
-  $("bWord").innerHTML = `<b>${l.w[0]}</b>${l.w.slice(1)}`;
-  $("bWordKata").textContent = l.wk;
-  updateProgress();
+  $("fLetter").textContent = c.letter + c.letter.toLowerCase();
+  $("bKata").textContent = c.katakana;
+  $("bEmoji").textContent = c.emoji;
+  const w = $("bWord"); w.textContent = "";
+  const b = document.createElement("b"); b.textContent = c.word[0];
+  w.append(b, c.word.slice(1));
+  $("bWordKata").textContent = c.wordKatakana;
+  setTag($("tagL"), item);
+  setTimeout(() => sayLetter(item.card), 150);
 }
-const go = d => { idx = (idx + d + 26) % 26; showCard(); setTimeout(() => sayLetter(L[idx]), 150); };
 $("card").onclick = () => {
-  const f = $("card").classList.toggle("flipped");
-  speak(f ? L[idx].w : L[idx].c);
+  if (!queue.length) return;
+  const f = $("card").classList.toggle("flipped"), c = queue[0].card.content;
+  speak(f ? c.word : c.letter);
 };
-$("prev").onclick = () => go(-1);
-$("next").onclick = () => go(1);
-$("say").onclick = () => sayLetter(L[idx]);
-$("know").onclick = () => { known.add(idx); save(); go(1); };
-$("again").onclick = () => { known.delete(idx); save(); go(1); };
+$("say").onclick = () => queue[0] && sayLetter(queue[0].card);
+async function gradeFlash(correct) {
+  if (locked || !queue.length) return;
+  locked = true;
+  await grade(queue[0], correct, "flashcard", null);
+  render();
+}
+$("know").onclick = () => gradeFlash(true);
+$("again").onclick = () => gradeFlash(false);
 
-/* quiz: show a letter, pick its katakana name */
-function newQuestion() {
-  locked = false;
-  const pool = [...Array(26).keys()];
-  answer = pool[Math.floor(Math.random() * 26)];
-  const wrong = pool.filter(i => i !== answer).sort(() => Math.random() - .5).slice(0, 3);
-  const opts = [answer, ...wrong].sort(() => Math.random() - .5);
-  $("qLetter").textContent = L[answer].c + L[answer].c.toLowerCase();
+function showQuestion() {
+  const item = queue[0], c = item.card;
+  const wrong = cards.filter(x => x.id !== c.id).sort(() => Math.random() - .5).slice(0, 3);
+  const opts = [c, ...wrong].sort(() => Math.random() - .5);
+  $("qLetter").textContent = c.content.letter + c.content.letter.toLowerCase();
   $("qMsg").textContent = "どれかな？";
+  setTag($("tagQ"), item);
   $("choices").innerHTML = "";
-  opts.forEach(i => {
+  opts.forEach(o => {
     const b = document.createElement("button");
-    b.textContent = L[i].k;
-    b.onclick = () => pick(i, b);
+    b.textContent = o.content.katakana;
+    b.onclick = () => pick(o, b);
     $("choices").appendChild(b);
   });
-  sayLetter(L[answer]);
+  sayLetter(c);
 }
-function pick(i, btn) {
+async function pick(o, btn) {
   if (locked) return;
-  if (i === answer) {
+  const item = queue[0], correct = o.id === item.card.id;
+  btn.classList.add(correct ? "right" : "wrong");
+  if (!correct) {
     locked = true;
-    btn.classList.add("right");
-    $("qMsg").textContent = "せいかい！🎉";
-    known.add(answer); save(); updateProgress();
-    setTimeout(newQuestion, 1400);
+    $("qMsg").textContent = `ざんねん… ${item.card.content.katakana}`;
   } else {
-    btn.classList.add("wrong");
-    $("qMsg").textContent = "もういちど！";
+    locked = true;
+    $("qMsg").textContent = "せいかい！🎉";
   }
+  const saving = grade(item, correct, "letter_to_katakana", o.content.katakana);
+  await new Promise(r => setTimeout(r, correct ? 1000 : 1800));
+  await saving;
+  render();
 }
-$("qSay").onclick = () => sayLetter(L[answer]);
-$("qNext").onclick = newQuestion;
+$("qSay").onclick = () => queue[0] && sayLetter(queue[0].card);
 
-/* list */
 function buildGrid() {
   $("grid").innerHTML = "";
-  L.forEach((l, i) => {
+  cards.forEach(c => {
     const b = document.createElement("button");
-    b.textContent = l.c;
+    b.textContent = c.content.letter;
     b.style.fontSize = "26px";
-    if (known.has(i)) b.classList.add("right");
-    b.onclick = () => { idx = i; setMode("learn"); sayLetter(l); };
+    if (state[c.id]) b.classList.add("box" + state[c.id].box);
+    b.onclick = () => sayLetter(c);
     $("grid").appendChild(b);
   });
 }
 
 function setMode(m) {
   mode = m;
-  $("learn").style.display = m === "learn" ? "contents" : "none";
-  $("quiz").classList.toggle("hidden", m !== "quiz");
-  $("list").classList.toggle("hidden", m !== "list");
-  $("modeLearn").classList.toggle("on", m === "learn");
-  $("modeQuiz").classList.toggle("on", m === "quiz");
-  $("modeList").classList.toggle("on", m === "list");
-  if (m === "learn") showCard();
-  if (m === "quiz") newQuestion();
-  if (m === "list") { buildGrid(); updateProgress(); }
+  ["Learn", "Quiz", "List"].forEach(n => $("mode" + n).classList.toggle("on", m === n.toLowerCase()));
+  render();
 }
 $("modeLearn").onclick = () => setMode("learn");
 $("modeQuiz").onclick = () => setMode("quiz");
 $("modeList").onclick = () => setMode("list");
 
-setMode("learn");
+async function start(u) {
+  user = u;
+  $("auth").classList.add("hidden");
+  $("tabs").classList.remove("hidden");
+  try {
+    await loadAll();
+  } catch (e) {
+    $("auth").classList.remove("hidden");
+    $("authErr").textContent = "よみこめません: " + e.message;
+    return;
+  }
+  buildQueue();
+  setMode("learn");
+}
+
+sb.auth.getSession().then(({ data }) => { if (data.session) start(data.session.user); });
 </script>
 </body>
 </html>
