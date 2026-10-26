@@ -168,7 +168,18 @@ function speak(text) {
   u.lang = "en-US"; u.rate = .75;
   speechSynthesis.speak(u);
 }
-const sayLetter = c => speak(c.content.letter === "A" ? "ay" : c.content.letter);
+/* recorded clips (audio/letter-a.mp3, audio/word-apple.mp3); browser voice is the fallback */
+let clip = null;
+function playClip(src, fallback) {
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  if (clip) { clip.pause(); clip = null; }
+  const a = new Audio(src);
+  clip = a;
+  a.onerror = () => speak(fallback);
+  a.play().catch(() => { if (clip === a) speak(fallback); });
+}
+const sayLetter = c => playClip(`audio/letter-${c.content.letter.toLowerCase()}.mp3`, c.content.letter === "A" ? "ay" : c.content.letter);
+const sayWord = c => playClip(`audio/word-${c.content.word.toLowerCase().replace(/\s+/g, "-")}.mp3`, c.content.word);
 
 /* ---------- auth ---------- */
 async function credentials(fn) {
@@ -289,8 +300,8 @@ function showCard() {
 }
 $("card").onclick = () => {
   if (!queue.length) return;
-  const f = $("card").classList.toggle("flipped"), c = queue[0].card.content;
-  speak(f ? c.word : c.letter);
+  const f = $("card").classList.toggle("flipped"), c = queue[0].card;
+  f ? sayWord(c) : sayLetter(c);
 };
 $("say").onclick = () => queue[0] && sayLetter(queue[0].card);
 async function gradeFlash(correct) {
