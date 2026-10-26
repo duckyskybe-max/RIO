@@ -85,7 +85,7 @@
   <!-- login -->
   <section id="auth" class="panel">
     <h2>🔤 ABC</h2>
-    <input id="email" type="email" autocomplete="username" placeholder="メール / email">
+    <input id="email" type="text" autocapitalize="none" autocorrect="off" autocomplete="username" placeholder="ログイン / login">
     <input id="password" type="password" autocomplete="current-password" placeholder="パスワード / password">
     <div class="err" id="authErr"></div>
     <button id="signin" class="know">ログイン</button>
@@ -173,8 +173,9 @@ const sayLetter = c => speak(c.content.letter === "A" ? "ay" : c.content.letter)
 /* ---------- auth ---------- */
 async function credentials(fn) {
   $("authErr").textContent = "";
-  const email = $("email").value.trim(), password = $("password").value;
-  if (!email || !password) { $("authErr").textContent = "メールとパスワードを いれてね"; return; }
+  let email = $("email").value.trim().toLowerCase(); const password = $("password").value;
+  if (!email || !password) { $("authErr").textContent = "ログインとパスワードを いれてね"; return; }
+  if (!email.includes("@")) email += "@rio.local";
   const { data, error } = await fn({ email, password });
   if (error) { $("authErr").textContent = error.message; return; }
   if (!data.session) { $("authErr").textContent = "メールを かくにんしてから ログインしてね"; return; }
