@@ -132,6 +132,7 @@
   <section id="done" class="hidden panel">
     <h2>きょうは おわり！🎉</h2>
     <div id="doneMsg"></div>
+    <button id="more" class="know">もっと れんしゅう！</button>
   </section>
 
   <!-- list -->
@@ -151,7 +152,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* Leitner boxes, same scheme as the kanji deck (box 1-6). Days until next review per box. */
 const BOX_DAYS = [0, 1, 3, 7, 14, 30];
-const NEW_PER_DAY = 5;
+const NEW_PER_DAY = 26;
 const nextReviewFor = box => box === 1
   ? new Date(Date.now() + 10 * 60 * 1000)
   : new Date(Date.now() + BOX_DAYS[box - 1] * 86400000);
@@ -277,6 +278,14 @@ function render() {
   shownAt = Date.now(); locked = false;
   mode === "learn" ? showCard() : showQuestion();
 }
+
+/* extra practice: all letters, least-known first. Cards that are not due keep their schedule unless answered wrong. */
+$("more").onclick = () => {
+  queue = [...cards]
+    .sort((a, b) => ((state[a.id] ? state[a.id].box : 0) - (state[b.id] ? state[b.id].box : 0)) || Math.random() - .5)
+    .map(card => ({ card, retry: false }));
+  render();
+};
 
 function showDone() {
   const upcoming = Object.values(state).map(s => new Date(s.next_review)).filter(d => d > Date.now()).sort((a, b) => a - b)[0];
